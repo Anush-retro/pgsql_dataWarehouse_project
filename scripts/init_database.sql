@@ -3,7 +3,7 @@
 Create schemas
 =========================================================
 Script purpose: 
-    This script creates 3 schemas bornze,silver and gold. Before creating them it first checks if they are created ornot.
+    This script creates 3 schemas bornze,silver and gold. Before creating them it first checks if they are created or not.
     If they are already created then postgresql returns a message that its is already created. The schemas are setup in
     the database "datawarehouse".
 Note:
