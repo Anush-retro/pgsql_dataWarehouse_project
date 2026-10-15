@@ -1,10 +1,13 @@
 /*
 ==================================================
-DDL Sctipt: Crete bronze tables
+DDL Sctipt: Crete bronze tables.
 ==================================================
 Script purpose:
 This script purpose is to createw table in 'bronze 
-schema
+schema.
+Note: 
+The data was enterd in th table using \copy 
+command in postgres sql through the terminal.
 ==================================================
 */
 
