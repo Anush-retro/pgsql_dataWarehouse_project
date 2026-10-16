@@ -1,0 +1,69 @@
+/*
+============================================================
+  DDL scripts: Create table for silver layer
+============================================================
+  Script purpose: This scripts create tables for silver 
+  layer
+============================================================
+*/
+
+CREATE TABLE silver.crm_customers (
+    cst_id INTEGER,
+    cst_key VARCHAR(50) NOT NULL,
+    cst_firstname VARCHAR(50),
+    cst_lastname VARCHAR(50),
+    cst_marital_status VARCHAR(10),
+    cst_gndr VARCHAR(10),
+    cst_create_date DATE,
+    dwh_create_date timestamptz default NOW()
+);
+
+CREATE TABLE silver.crm_products (
+    prd_id INTEGER ,
+    cat_id varchar(50),
+    prd_key VARCHAR(50) NOT NULL,
+    prd_nm VARCHAR(100) NOT NULL,
+    prd_cost NUMERIC(10, 2),
+    prd_line VARCHAR(10),
+    prd_start_dt DATE NOT NULL,
+    prd_end_dt DATE,
+    dwh_create_date timestamptz default NOW()
+);
+
+CREATE TABLE silver.crm_sale_details_raw (
+    sls_ord_num VARCHAR(50) NOT NULL,
+    sls_prd_key VARCHAR(50) NOT NULL,
+    sls_cust_id INTEGER NOT NULL,
+    sls_order_dt INTEGER, 
+    sls_ship_dt INTEGER,  
+    sls_due_dt INTEGER,   
+    sls_sales NUMERIC(10, 2),
+    sls_quantity INTEGER NOT NULL,
+    sls_price NUMERIC(10, 2),
+    dwh_create_date timestamptz default NOW()
+);
+
+alter table silver.crm_sale_details_raw alter column sls_order_dt type date USING TO_DATE(sls_order_dt::text, 'YYYYMMDD');
+alter table silver.crm_sale_details_raw alter column sls_ship_dt type date USING TO_DATE(sls_ship_dt::text, 'YYYYMMDD');
+alter table silver.crm_sale_details_raw alter column sls_due_dt type date USING TO_DATE(sls_due_dt::text, 'YYYYMMDD');
+
+CREATE TABLE silver.erm_cust (
+    CID VARCHAR(20) ,
+    BDATE DATE,
+    GEN VARCHAR(20),
+    dwh_create_date timestamptz default NOW()
+);
+
+CREATE TABLE silver.erm_location (
+    CID VARCHAR(20) ,
+    CNTRY VARCHAR(50),
+    dwh_create_date timestamptz default NOW()
+);
+
+CREATE TABLE silver.erm_px_cat (
+    ID VARCHAR(10) ,
+    CAT VARCHAR(50) NOT NULL,
+    SUBCAT VARCHAR(50) NOT NULL,
+    MAINTENANCE VARCHAR(10) NOT NULL,
+    dwh_create_date timestamptz default NOW()
+);
