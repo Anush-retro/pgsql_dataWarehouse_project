@@ -1,0 +1,140 @@
+/*
+============================================================
+  Stored procedure: load Silver (Bronze -> Silver)
+============================================================
+  Script purpose: This script performs ETL (extract,load,
+  transform) process to load table in silver layer from
+  bronze schema.
+  Actions performed:
+  -Truncates silver table.
+  -Inserts transformed and clean data from bronze to silver
+  tables.
+
+  Parameters:
+  None
+  This stored procedure does not accept any parameters and
+  does not return any values.
+
+  Usage Example:
+  call silver.load_silver_layer();
+============================================================
+*/
+CREATE OR REPLACE PROCEDURE silver.load_silver_layer()
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    -- 1. Inserting into silver.crm_customers
+    TRUNCATE TABLE silver.crm_customers;
+    INSERT INTO silver.crm_customers (
+        cst_id,
+        cst_key,
+        cst_firstname,
+        cst_lastname,
+        cst_marital_status,
+        cst_gndr,
+        cst_create_date
+    )
+    SELECT 
+        cst_id,
+        cst_key,
+        TRIM(cst_firstname) AS cst_firstname,
+        TRIM(cst_lastname) AS cst_lastname,
+        cst_marital_status,
+        cst_gndr,
+        cst_create_date
+    FROM (
+        SELECT *,
+               ROW_NUMBER() OVER (PARTITION BY cst_id ORDER BY cst_create_date DESC) AS flag_last
+        FROM bronze.crm_customers
+    ) sub 
+    WHERE flag_last = 1;
+
+    -- 2. Inserting into silver,crm_products
+    TRUNCATE TABLE silver.crm_products;
+    INSERT INTO silver.crm_products(prd_id, cat_id, prd_key, prd_nm, prd_cost, prd_line, prd_start_dt, prd_end_dt)
+    SELECT
+        prd_id,
+        REPLACE(SUBSTRING(prd_key, 1, 5), '-', '_') AS cat_id,
+        SUBSTRING(prd_key, 7, LENGTH(prd_key)) AS prd_key,
+        prd_nm,
+        prd_cost,
+        prd_line,
+        prd_start_dt,
+        LEAD(prd_start_dt) OVER (PARTITION BY prd_key ORDER BY prd_start_dt) - 1 AS prd_end_dt
+    FROM bronze.crm_products;
+
+    -- 3. Inserting into silver.erm_sales_details_raw
+    TRUNCATE TABLE silver.crm_sale_details_raw;
+    INSERT INTO silver.crm_sale_details_raw(
+        sls_ord_num, sls_prd_key, sls_cust_id, sls_order_dt, 
+        sls_ship_dt, sls_due_dt, sls_sales, sls_quantity, sls_price
+    )
+    SELECT
+        sls_ord_num,
+        sls_prd_key,
+        sls_cust_id,
+        CASE WHEN sls_order_dt = 0 OR LENGTH(sls_order_dt::text) != 8 THEN NULL
+             ELSE TO_DATE(sls_order_dt::text, 'YYYYMMDD')
+        END AS sls_order_dt,
+        CASE WHEN sls_ship_dt = 0 OR LENGTH(sls_ship_dt::text) != 8 THEN NULL
+             ELSE TO_DATE(sls_ship_dt::text, 'YYYYMMDD')
+        END AS sls_ship_dt,
+        CASE WHEN sls_due_dt = 0 OR LENGTH(sls_due_dt::text) != 8 THEN NULL
+             ELSE TO_DATE(sls_due_dt::text, 'YYYYMMDD')
+        END AS sls_due_dt,
+        CASE WHEN sls_sales <= 0 OR sls_sales IS NULL OR sls_sales != sls_quantity * ABS(sls_price)
+             THEN sls_quantity * ABS(sls_price)
+             ELSE sls_sales
+        END AS sls_sales,
+        sls_quantity,
+        CASE WHEN sls_price IS NULL OR sls_price <= 0
+             THEN sls_sales / NULLIF(sls_quantity, 0)
+             ELSE sls_price
+        END AS sls_price
+    FROM bronze.crm_sales_details_raw;
+
+    -- 4. Inserting data into silver.erm_customers
+    TRUNCATE TABLE silver.erm_cust;
+    INSERT INTO silver.erm_cust(cid, bdate, gen)
+    SELECT 
+        CASE WHEN cid LIKE 'NAS%' THEN SUBSTRING(cid, 4, LENGTH(cid))
+             ELSE cid
+        END AS cid,
+        CASE WHEN bdate > NOW() THEN NULL
+             ELSE bdate
+        END AS bdate, 
+        CASE 
+             WHEN TRIM(gen) IS NULL OR TRIM(gen) = '' THEN 'n/a'
+             WHEN UPPER(TRIM(gen)) = 'F' THEN 'Female'
+             WHEN UPPER(TRIM(gen)) = 'M' THEN 'Male'
+             ELSE TRIM(gen)
+        END AS gen
+    FROM bronze.erm_cust;
+
+    -- 5. Inserting into silver.erm_locations
+    TRUNCATE TABLE silver.erm_location;
+    INSERT INTO silver.erm_location(cid, cntry)
+    SELECT
+        REPLACE(cid, '-', ''),
+        CASE WHEN TRIM(cntry) LIKE 'DE' THEN 'Germany'
+             WHEN TRIM(cntry) IN ('US', 'USA') THEN 'United states'
+             WHEN TRIM(cntry) LIKE '' OR TRIM(cntry) IS NULL THEN 'n/a'
+             ELSE cntry 
+        END AS cntry
+    FROM bronze.erm_location;
+
+    --6. Inserting into silver.erm_px_cat
+    TRUNCATE TABLE silver.erm_px_cat;
+    INSERT INTO silver.erm_px_cat(id, cat, subcat, maintenance)
+    SELECT
+        catid,
+        cat,
+        subcat,
+        maintance
+    FROM bronze.erm_px_cat;
+
+    RAISE NOTICE 'Silver layer ETL load completed successfully.';
+END;
+$$;
+
+call silver.load_silver_layer();
