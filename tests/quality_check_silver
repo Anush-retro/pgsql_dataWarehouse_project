@@ -1,0 +1,190 @@
+/
+====================================================
+Quality checks
+====================================================
+Script purpose:
+This script performs variouse quality checks for
+data consistency,normalisation,accuracy and
+standardization across the 'silver' schema. It
+includes checks for:
+-Null or duplicate primary keys.
+-Unwanted spaces or string field.
+-Data standardization and consistency.
+-Invalid date range and orders.
+-Data consistency between different fields.
+
+Usage Notes:
+-It contains checks for both before and after 
+loading the silver layer.
+-Investigate and resolve any dicrepancies
+found during checks.
+====================================================
+\
+
+--checking for duplicates in cst_id
+select 
+cst_id,
+count(*)
+from bronze.crm_customers
+group by cst_id
+having count(*)>1 or cst_id is NULL;
+
+--checking for spaces in firstname and lastname
+select cst_firstname from bronze.crm_customers
+where cst_firstname != trim(cst_firstname);
+
+select cst_lastname from bronze.crm_customers
+where cst_lastname != trim(cst_lastname);
+
+--Quality check in silver crm_customers
+select 
+cst_id,
+count(*)
+from silver.crm_customers
+group by cst_id
+having count(*)>1 or cst_id is NULL;
+
+select cst_firstname from silver.crm_customers
+where cst_firstname != trim(cst_firstname);
+
+select cst_lastname from silver.crm_customers
+where cst_lastname != trim(cst_lastname);
+
+--checking for duplicates in prd_id
+select 
+prd_id,
+count(*)
+from bronze.crm_products
+group by prd_id
+having count(*)>1 or prd_id is NULL;
+
+--check if any product cost is null or negative in products
+select prd_cost from bronze.crm_products where prd_cost < 0 or prd_cost is NULL;
+
+--checking for invalid date orders in products
+select * from bronze.crm_products where prd_start_dt>prd_end_dt;
+
+--data quality check for silver products table
+select 
+prd_id,
+count(*)
+from silver.crm_products
+group by prd_id
+having count(*)>1 or prd_id is NULL;
+
+select prd_cost from silver.crm_products where prd_cost < 0 or prd_cost is NULL;
+
+select * from silver.crm_products where prd_start_dt>prd_end_dt;
+
+--check any invalid dates in sales details
+
+select sls_order_dt 
+from bronze.crm_sales_details_raw 
+where sls_order_dt <=0 
+or length(sls_order_dt::text)!=8;
+
+select sls_ship_dt 
+from bronze.crm_sales_details_raw 
+where sls_ship_dt <=0 
+or length(sls_ship_dt::text)!=8;
+
+select sls_due_dt 
+from bronze.crm_sales_details_raw 
+where sls_due_dt <=0 
+or length(sls_due_dt::text)!=8;
+
+select sls_order_dt
+from bronze.crm_sales_details_raw
+where sls_order_dt > sls_due_dt or sls_order_dt > sls_ship_dt;
+
+--Checking data consistency
+-- >> Sales = Qty * Price
+-- >> Value must not be NULL, Zero, Negative.
+
+select 
+sls_sales as old_sls_sales,
+sls_quantity,
+sls_price as old_sls_price,
+from bronze.crm_sales_details_raw
+where sls_sales != sls_quantity * sls_price 
+or sls_sales <= 0 or sls_quantity <= 0 or sls_price <= 0
+or sls_sales is NULL or sls_quantity is NULL or sls_price is NULL
+order by sls_sales,sls_quantity, sls_price;
+
+--Quality check silver sale details data
+
+select sls_order_dt 
+from silver.crm_sales_details_raw 
+where sls_order_dt <=0 
+or length(sls_order_dt::text)!=8;
+
+select sls_ship_dt 
+from silver.crm_sales_details_raw 
+where sls_ship_dt <=0 
+or length(sls_ship_dt::text)!=8;
+
+select sls_due_dt 
+from silver.crm_sales_details_raw 
+where sls_due_dt <=0 
+or length(sls_due_dt::text)!=8;
+
+select sls_order_dt
+from silver.crm_sales_details_raw
+where sls_order_dt > sls_due_dt or sls_order_dt > sls_ship_dt;
+
+select 
+sls_sales,
+sls_quantity,
+sls_price,
+from silver.crm_sales_details_raw
+where sls_sales != sls_quantity * sls_price 
+or sls_sales <= 0 or sls_quantity <= 0 or sls_price <= 0
+or sls_sales is NULL or sls_quantity is NULL or sls_price is NULL
+order by sls_sales,sls_quantity, sls_price;
+
+--Checking invalid dates in erm customers in bronze layer
+select 
+bdate
+from bronze.erm_cust
+where bdate > now();
+
+--Checking data consistency in erm customers in bronze layer
+SELECT DISTINCT gen
+FROM bronze.erm_cust;
+
+-- quality check silver erm customers
+select 
+bdate
+from silver.erm_cust
+where bdate > now();
+
+SELECT DISTINCT gen
+FROM silver.erm_cust;
+
+--Matching of cid of location with cst_key in crm_customers
+select
+replace(cid,'-','')
+from bronze.erm_location where cid not in (select cst_key from silver.crm_customers);
+
+--data continuity in country column in erm_location
+select distinct cntry
+from bronze.erm_location;
+
+--Quality check in silver erm_location
+select
+replace(cid,'-','')
+from silver.erm_location where cid not in (select cst_key from silver.crm_customers);
+
+select distinct cntry
+from silver.erm_location;
+
+--Checking unwanted spaces in bronze erm_px_cat
+select * from bronze.erm_px_cat 
+where catid != trim(catid) 
+or subcat != trim(subcat) 
+or maintance != trim(maintance);
+
+--Checking data consistency 
+select distinct cat from bronze.erm_px_cat;
+select distinct subcat from bronze.erm_px_cat;
+select distinct maintance from bronze.erm_px_cat;
