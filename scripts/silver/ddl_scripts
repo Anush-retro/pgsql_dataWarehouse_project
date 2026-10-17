@@ -33,7 +33,7 @@ CREATE TABLE silver.crm_products (
 CREATE TABLE silver.crm_sale_details_raw (
     sls_ord_num VARCHAR(50) NOT NULL,
     sls_prd_key VARCHAR(50) NOT NULL,
-    sls_cust_id INTEGER NOT NULL,
+    sls_cust_id VARCHAR(50) NOT NULL,
     sls_order_dt INTEGER, 
     sls_ship_dt INTEGER,  
     sls_due_dt INTEGER,   
