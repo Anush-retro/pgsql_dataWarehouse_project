@@ -1,0 +1,86 @@
+/*
+===============================================================================
+Quality Checks
+===============================================================================
+Script Purpose:
+    This script performs quality checks to validate the integrity, consistency, 
+    and accuracy of the Gold Layer. These checks ensure:
+    - Uniqueness of surrogate keys in dimension tables.
+    - Referential integrity between fact and dimension tables.
+    - Validation of relationships in the data model for analytical purposes.
+
+Usage Notes:
+    - Investigate and resolve any discrepancies found during the checks.
+===============================================================================
+*/
+
+--Checking for uniqueness for customer id
+select cst_id, count(*) from
+(
+  select
+  ci.cst_id,
+  ci.cst_key,
+  ci.cst_firstname,
+  ci.cst_lastname,
+  ci.cst_marital_status,
+  ci.cst_gndr,
+  ci.cst_create_date,
+  ca.bdate,
+  ca.gen,
+  la.cntry
+  from silver.crm_customers ci
+  left join silver.erm_cust ca
+  on      ci.cst_key = ca.cid
+  left join silver.erm_location la 
+  on      ci.cst_key = la.cid
+) subquery 
+  group by cst_id 
+  having count(*)>1;
+
+--checking for inconsistency
+select distinct
+  ci.cst_gndr,
+  ca.gen,
+  from silver.crm_customers ci
+  left join silver.erm_cust ca
+  on      ci.cst_key = ca.cid
+  left join silver.erm_location la 
+  on      ci.cst_key = la.cid
+order by 1,2;
+
+--Checking uniquness of product key
+select prd_key, count(*) from
+( 
+  select
+  pn.prd_id,
+  pn.cat_id,
+  pn.prd_key,
+  pn.prd_cost,
+  pn.prd_line,
+  pn.prd_start_dt,
+  pn.prd_end_dt,
+  px.cat,
+  px.subcat,
+  px.maintenance
+  from silver.crm_products pn
+  left join silver.erm_px_cat px
+  on pn.cat_id = px.id
+  where pn.prd_end_dt is NULL
+) subquery
+group by prd_key
+having count(*)>1;
+;
+
+-- Foreign key Integrity
+select *
+from gold.fact_sales f 
+left join gold.dim_products p
+on p.product_key = f.product_key
+where p.product_key is null;
+
+select *
+from gold.fact_sales f 
+left join gold.dim_customers c
+on c.customer_key = f.customer_key
+where c.customer_key is null;
+
